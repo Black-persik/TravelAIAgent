@@ -40,17 +40,19 @@ Adding dependencies is fine: use `uv add <pkg>` (or `uv add --dev <pkg>`) and sa
 - Tests: `uv run pytest`
 - Lint and format: `uv run ruff check --fix . && uv run ruff format .`
 - Pre-commit hooks, once per fresh clone (every cloud session starts from a fresh clone): `uvx pre-commit install`
-- Run the app: see `README.md`
+- Run locally: `docker compose up --build` (details in `README.md`)
 
 ## Stack
-Python 3.12 · uv · LangGraph (orchestration, state, checkpoints) · LangChain (OpenRouter models, tools, structured output) · LlamaIndex (RAG over hotels, reviews, guides) · FastAPI + Gradio · Postgres + pgvector · Langfuse (tracing) · MCP server for tools.
+Python 3.12 · uv · LangGraph (orchestration, state, checkpoints) · LangChain (OpenRouter models, tools, structured output) · LlamaIndex (RAG over hotels, reviews, guides) · FastAPI (SSE streaming) · own website in `web/` · Postgres + pgvector · Langfuse (tracing) · MCP server for tools · Docker Compose.
 
 ## Layout
+- `app/config.py`: all settings; `app/llm.py`: OpenRouter model factory; `app/observability.py`: Langfuse
 - `app/graph/`: LangGraph nodes, `TripState`, graph assembly
 - `app/agents/`: supervisor and worker agents
 - `app/rag/`: LlamaIndex ingestion and query engines
 - `app/validators/`: budget, dates and connection checks (pure Python)
-- `app/api/`, `app/ui/`: FastAPI, Gradio, Telegram bot
+- `app/api/`: FastAPI app, built by the `create_app()` factory in `main.py`
+- `web/`: the website (static, served by Caddy); it talks to `/api` and holds no secrets
 - `mcp_tools/`: MCP server with hotel, flight, weather and transfer tools
 - `data/`: synthetic data generators and destination catalogue
 - `evals/`: golden dataset, LLM-as-judge, simulated user
@@ -63,6 +65,7 @@ Python 3.12 · uv · LangGraph (orchestration, state, checkpoints) · LangChain 
 - Replanning ("two days later", "smaller budget") updates only the affected `TripState` fields and re-runs only dependent nodes. Never restart the search from scratch.
 - LLM output that feeds `TripState` uses structured output (Pydantic models), not free-text parsing.
 - Mocked or synthetic data is labelled as such (`source="mock"`), so the UI can say so honestly.
+- `docker-compose.yml` is what runs on the server; `docker-compose.override.yml` is local only. Never publish Postgres or API ports in `docker-compose.yml` (Docker-published ports bypass the server firewall).
 
 ## Git workflow
 - One branch per task: `feat/…`, `fix/…`, `docs/…`, `chore/…`. Never commit to `main` directly.
@@ -73,6 +76,7 @@ Python 3.12 · uv · LangGraph (orchestration, state, checkpoints) · LangChain 
 ## Testing
 - Tests are required for validators, tools and graph nodes.
 - Tests run offline with no keys; LLM and HTTP calls are mocked.
+- API tests build the app with `create_app(settings, llm, checkpointer)` using fakes; see `tests/conftest.py`.
 
 ## Keeping this file current
 Update this file in the same PR when commands, layout or rules change. Keep it under ~150 lines and move details into `docs/`.

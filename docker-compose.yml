@@ -1,0 +1,35 @@
+# Base configuration: this file is what runs on the server.
+# Local development adds docker-compose.override.yml on top (Compose loads it automatically).
+name: travelaiagent
+
+services:
+  api:
+    # On the server, API_IMAGE points to the image built by CI (ghcr.io/...:<commit>).
+    image: ${API_IMAGE:-travelaiagent-api:local}
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    # Only the three database variables go to this container, not the whole .env.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # No `ports:` here on purpose: the database is reachable only inside the Docker network.
+
+volumes:
+  pgdata:

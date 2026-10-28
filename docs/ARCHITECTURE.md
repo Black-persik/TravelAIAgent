@@ -18,15 +18,20 @@ Living document: it records the current design and the reasons behind it. Update
 Each framework does one job; we do not build RAG twice or keep state in two places.
 
 ## Deployment
-One VPS with Docker Compose, deployed from `main` by CI/CD:
+One VPS with Docker Compose, deployed from `main` by CI/CD. CI builds the `api` image, publishes it to GitHub Container Registry tagged with the commit, writes `.env` on the server from the GitHub Environment `production`, then runs `docker compose pull && docker compose up -d` and checks `/api/health`. The server never builds code; rolling back means switching the image tag. Until a domain is bought, the site uses a free `<ip>.sslip.io` hostname so Caddy can still issue an HTTPS certificate.
 
-- `app`: FastAPI with Gradio mounted on it; the LangGraph agent runs here.
+- `api`: FastAPI app with the LangGraph agent; answers stream over SSE.
 - `mcp-tools`: MCP server (FastMCP) with hotel, flight, weather and transfer tools, connected to the agent via `langchain-mcp-adapters`. The same tools can be reused by other MCP clients or a baseline agent.
 - `postgres` with pgvector: LangGraph checkpoints, user memory across sessions and the LlamaIndex vector index. One database, one backup.
-- `caddy`: reverse proxy with automatic HTTPS.
+- `caddy`: reverse proxy with automatic HTTPS; serves the website from `web/` and proxies `/api` to `api`. The only service with published ports (80, 443).
 - External: OpenRouter (LLMs) and Langfuse (tracing; cloud free tier first, self-hosting later if needed).
 
+`docker-compose.yml` is the server configuration; `docker-compose.override.yml` adds local-only settings (build from source, reload, ports on `127.0.0.1`).
+
 The public UI is protected by a login, rate limiting and a spending limit on the OpenRouter key.
+
+## Web UI
+API-first: the agent exposes a JSON + SSE API under `/api`, and the website in `web/` is a separate static frontend that calls it. Stage 1 ships a minimal chat page; the full interface (trip cards, comparison, cart) replaces it later without touching the agent. Nothing secret is ever shipped to the browser: every key stays on the server.
 
 ## TripState
 ```
@@ -94,7 +99,7 @@ Every pattern sits behind a flag so its gain can be measured against a plain bas
 - **Optimisation:** model routing (cheap model for extraction, strong for planning), stable system prompts for prompt caching, cached tool results, batched eval runs.
 
 ## Roadmap
-1. Walking skeleton: FastAPI + Gradio + one LangGraph node + OpenRouter, Docker Compose, HTTPS, login, Langfuse, CI/CD from `main`.
+1. Walking skeleton, in three PRs: (a) one-node LangGraph agent on OpenRouter, FastAPI with SSE, login, rate limits, Postgres checkpoints, Langfuse, Docker Compose for local runs; (b) CI, deployment from `main` via GHCR, Caddy with HTTPS; (c) minimal website.
 2. Data and tools: destination catalogue, synthetic hotels, MCP server, LlamaIndex index in pgvector.
 3. Core journey to checkout: `TripState`, parsing with Self-Consistency, search, comparison, validator, cart, `interrupt`.
 4. Advanced patterns: replanning, ToT for destinations, supervisor/worker, debate, reflection.

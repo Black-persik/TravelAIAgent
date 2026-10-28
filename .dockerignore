@@ -1,0 +1,17 @@
+# Keep secrets out of the build context entirely, not just out of the image.
+.env
+.env.*
+secrets/
+*.pem
+*.key
+
+.git/
+.github/
+.claude/
+.venv/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+tests/
+docs/
+scripts/
